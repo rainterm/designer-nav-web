@@ -32,7 +32,6 @@
   "build": {
     "appId": "com.designer.navweb",
     "productName": "Designer网址导航",
-    "executableName": "designer-nav-web",
     "artifactName": "designer-nav-web-${version}-${os}-${arch}.${ext}",
     "directories": {
       "output": "release",
