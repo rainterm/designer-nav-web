@@ -9,6 +9,9 @@ contextBridge.exposeInMainWorld('navDesktop', {
   unloadView: () => ipcRenderer.invoke('browser-view:unload'),
   destroyViews: (payload) => ipcRenderer.invoke('browser-view:destroy', payload || {}),
   reload: () => ipcRenderer.invoke('browser-view:reload'),
+  goBack: () => ipcRenderer.invoke('browser-view:go-back'),
+  goForward: () => ipcRenderer.invoke('browser-view:go-forward'),
+  getNavState: () => ipcRenderer.invoke('browser-view:get-nav-state'),
   openExternal: (url) => ipcRenderer.invoke('browser-view:open-external', url),
   getCurrentPage: (payload) => ipcRenderer.invoke('browser-view:get-current', payload || {}),
   resolveFavicon: (payload) => ipcRenderer.invoke('favicon:resolve', payload),
@@ -20,5 +23,10 @@ contextBridge.exposeInMainWorld('navDesktop', {
     const listener = (_event, factor) => handler(factor)
     ipcRenderer.on('browser-view:zoom-changed', listener)
     return () => ipcRenderer.removeListener('browser-view:zoom-changed', listener)
+  },
+  onNavChanged: (handler) => {
+    const listener = (_event, state) => handler(state)
+    ipcRenderer.on('browser-view:nav-changed', listener)
+    return () => ipcRenderer.removeListener('browser-view:nav-changed', listener)
   }
 })

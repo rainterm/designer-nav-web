@@ -444,8 +444,11 @@ function confirmNewGroup() {
 const viewerBodyRef = ref(null)
 const loading = ref(false)
 const zoomFactor = ref(1)
+const canGoBack = ref(false)
+const canGoForward = ref(false)
 let loadTimer = null
 let offZoom = null
+let offNav = null
 
 const ZOOM_MIN = 0.5
 const ZOOM_MAX = 3
@@ -521,6 +524,10 @@ const {
   sync,
   hide,
   reload,
+  goBack,
+  goForward,
+  getNavState,
+  onNavChanged,
   openExternal,
   getCurrentPage,
   attach,
@@ -570,6 +577,19 @@ const canZoom = computed(() => mode.value === 'frame' || mode.value === 'board')
 
 const zoomLabel = computed(() => `${Math.round(zoomFactor.value * 100)}%`)
 
+function applyNavState(state) {
+  canGoBack.value = !!state?.canGoBack
+  canGoForward.value = !!state?.canGoForward
+}
+
+async function refreshNavState() {
+  if (!canZoom.value) {
+    applyNavState({ canGoBack: false, canGoForward: false })
+    return
+  }
+  applyNavState(await getNavState())
+}
+
 function clearLoadTimer() {
   if (loadTimer) {
     clearTimeout(loadTimer)
@@ -596,6 +616,16 @@ async function applyZoomReset() {
   zoomFactor.value = typeof next === 'number' ? next : 1
 }
 
+async function navigateBack() {
+  if (!props.site || !canZoom.value || !canGoBack.value) return
+  applyNavState(await goBack())
+}
+
+async function navigateForward() {
+  if (!props.site || !canZoom.value || !canGoForward.value) return
+  applyNavState(await goForward())
+}
+
 function onViewerWheel(e) {
   if (!(e.ctrlKey || e.metaKey)) return
   e.preventDefault()
@@ -603,8 +633,24 @@ function onViewerWheel(e) {
 }
 
 function onViewerKeydown(e) {
+  if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'Left')) {
+    e.preventDefault()
+    navigateBack()
+    return
+  }
+  if (e.altKey && (e.key === 'ArrowRight' || e.key === 'Right')) {
+    e.preventDefault()
+    navigateForward()
+    return
+  }
   if (!(e.ctrlKey || e.metaKey)) return
-  if (e.key === '+' || e.key === '=' || e.key === 'Add') {
+  if (e.key === '[' || e.key === 'BracketLeft') {
+    e.preventDefault()
+    navigateBack()
+  } else if (e.key === ']' || e.key === 'BracketRight') {
+    e.preventDefault()
+    navigateForward()
+  } else if (e.key === '+' || e.key === '=' || e.key === 'Add') {
     e.preventDefault()
     applyZoomStep(1)
   } else if (e.key === '-' || e.key === '_' || e.key === 'Subtract') {
@@ -657,6 +703,7 @@ watch(
     startLoading()
     await syncBoardViews()
     loading.value = false
+    await refreshNavState()
   }
 )
 
@@ -666,6 +713,8 @@ onMounted(async () => {
   offZoom = onZoomChanged((factor) => {
     zoomFactor.value = factor
   })
+  offNav = onNavChanged((state) => applyNavState(state))
+  await refreshNavState()
   window.addEventListener('keydown', onViewerKeydown)
 })
 
@@ -675,6 +724,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('mousemove', onSplitMove)
   window.removeEventListener('mouseup', endSplit)
   offZoom?.()
+  offNav?.()
   detach()
 })
 
@@ -683,6 +733,7 @@ async function refresh() {
   startLoading()
   await reload()
   loading.value = false
+  await refreshNavState()
 }
 
 function openInBrowser() {
@@ -720,6 +771,20 @@ function closeCurrentTab() {
         <span>{{ site?.desc || site?.url || '从左侧选择一个网站' }}</span>
       </div>
       <n-space :size="8" align="center">
+        <n-button
+          :disabled="!site || !canZoom || !canGoBack"
+          title="后退 (Alt + ← / ⌘ [)"
+          @click="navigateBack"
+        >
+          后退
+        </n-button>
+        <n-button
+          :disabled="!site || !canZoom || !canGoForward"
+          title="前进 (Alt + → / ⌘ ])"
+          @click="navigateForward"
+        >
+          前进
+        </n-button>
         <n-button
           :disabled="!site || !canZoom || zoomFactor <= ZOOM_MIN"
           title="缩小 (Ctrl + 滚轮)"

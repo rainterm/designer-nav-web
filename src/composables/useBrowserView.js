@@ -90,6 +90,30 @@ export function useBrowserView({ getTargetEl, getUrl, getViewId, getPanes, isAct
     if (isElectronApp()) await window.navDesktop.reload()
   }
 
+  async function goBack() {
+    if (!isElectronApp() || !window.navDesktop.goBack) return { canGoBack: false, canGoForward: false }
+    return (await window.navDesktop.goBack()) || { canGoBack: false, canGoForward: false }
+  }
+
+  async function goForward() {
+    if (!isElectronApp() || !window.navDesktop.goForward) {
+      return { canGoBack: false, canGoForward: false }
+    }
+    return (await window.navDesktop.goForward()) || { canGoBack: false, canGoForward: false }
+  }
+
+  async function getNavState() {
+    if (!isElectronApp() || !window.navDesktop.getNavState) {
+      return { canGoBack: false, canGoForward: false }
+    }
+    return (await window.navDesktop.getNavState()) || { canGoBack: false, canGoForward: false }
+  }
+
+  function onNavChanged(handler) {
+    if (!isElectronApp() || !window.navDesktop.onNavChanged) return () => {}
+    return window.navDesktop.onNavChanged(handler)
+  }
+
   async function openExternal(url) {
     if (isElectronApp() && url) await window.navDesktop.openExternal(url)
   }
@@ -181,6 +205,10 @@ export function useBrowserView({ getTargetEl, getUrl, getViewId, getPanes, isAct
     unload,
     destroyViews,
     reload,
+    goBack,
+    goForward,
+    getNavState,
+    onNavChanged,
     openExternal,
     getCurrentPage,
     attach,

@@ -38,9 +38,25 @@ window.addEventListener(
 window.addEventListener(
   'keydown',
   (e) => {
+    if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'Left')) {
+      e.preventDefault()
+      ipcRenderer.invoke('browser-view:go-back')
+      return
+    }
+    if (e.altKey && (e.key === 'ArrowRight' || e.key === 'Right')) {
+      e.preventDefault()
+      ipcRenderer.invoke('browser-view:go-forward')
+      return
+    }
     if (!isZoomModifier(e)) return
     const key = e.key
-    if (key === '+' || key === '=' || key === 'Add') {
+    if (key === '[' || key === 'BracketLeft') {
+      e.preventDefault()
+      ipcRenderer.invoke('browser-view:go-back')
+    } else if (key === ']' || key === 'BracketRight') {
+      e.preventDefault()
+      ipcRenderer.invoke('browser-view:go-forward')
+    } else if (key === '+' || key === '=' || key === 'Add') {
       e.preventDefault()
       ipcRenderer.invoke('browser-view:zoom-step', 1)
     } else if (key === '-' || key === '_' || key === 'Subtract') {

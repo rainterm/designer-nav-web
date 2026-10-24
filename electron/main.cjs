@@ -43,6 +43,73 @@ function notifyZoomChanged(factor) {
   }
 }
 
+function listAttachedViews() {
+  const attached = mainWindow?.getBrowserViews?.() || []
+  if (attached.length) return attached
+  return [...paneViews.values()].filter((view) => view && !view.webContents.isDestroyed())
+}
+
+function viewCanGoBack(wc) {
+  if (!wc || wc.isDestroyed()) return false
+  if (wc.navigationHistory) return wc.navigationHistory.canGoBack()
+  return typeof wc.canGoBack === 'function' ? wc.canGoBack() : false
+}
+
+function viewCanGoForward(wc) {
+  if (!wc || wc.isDestroyed()) return false
+  if (wc.navigationHistory) return wc.navigationHistory.canGoForward()
+  return typeof wc.canGoForward === 'function' ? wc.canGoForward() : false
+}
+
+function viewGoBack(wc) {
+  if (!viewCanGoBack(wc)) return
+  if (wc.navigationHistory) wc.navigationHistory.goBack()
+  else wc.goBack()
+}
+
+function viewGoForward(wc) {
+  if (!viewCanGoForward(wc)) return
+  if (wc.navigationHistory) wc.navigationHistory.goForward()
+  else wc.goForward()
+}
+
+function readNavState() {
+  let canGoBack = false
+  let canGoForward = false
+  for (const view of listAttachedViews()) {
+    if (!view || view.webContents.isDestroyed()) continue
+    if (viewCanGoBack(view.webContents)) canGoBack = true
+    if (viewCanGoForward(view.webContents)) canGoForward = true
+  }
+  return { canGoBack, canGoForward }
+}
+
+function notifyNavChanged() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('browser-view:nav-changed', readNavState())
+  }
+}
+
+function wireNavEvents(webContents) {
+  if (!webContents || webContents.isDestroyed()) return
+  const emit = () => notifyNavChanged()
+  webContents.on('did-navigate', emit)
+  webContents.on('did-navigate-in-page', emit)
+  webContents.on('did-finish-load', emit)
+  webContents.on('did-stop-loading', emit)
+}
+
+function goAttached(direction) {
+  const forward = direction > 0
+  for (const view of listAttachedViews()) {
+    if (!view || view.webContents.isDestroyed()) continue
+    if (forward) viewGoForward(view.webContents)
+    else viewGoBack(view.webContents)
+  }
+  notifyNavChanged()
+  return readNavState()
+}
+
 function applyZoomToView(view) {
   if (view && !view.webContents.isDestroyed()) {
     view.webContents.setZoomFactor(viewZoomFactor)
@@ -355,6 +422,7 @@ function createPaneBrowserView(id) {
   view.webContents.setUserAgent(CHROME_UA)
   view.webContents.setVisualZoomLevelLimits(1, 3).catch(() => {})
   keepLinksInView(view.webContents)
+  wireNavEvents(view.webContents)
   view.webContents.on('did-finish-load', () => {
     applyZoomToView(view)
     seedDuokanSearch(view.webContents)
@@ -578,6 +646,7 @@ function createContentView() {
   contentView.webContents.setUserAgent(CHROME_UA)
   contentView.webContents.setVisualZoomLevelLimits(1, 3).catch(() => {})
   keepLinksInView(contentView.webContents)
+  wireNavEvents(contentView.webContents)
   contentView.webContents.on('did-finish-load', () => {
     if (!contentView?.webContents.isDestroyed()) {
       contentView.webContents.setZoomFactor(viewZoomFactor)
@@ -645,6 +714,7 @@ ipcMain.handle('browser-view:show', async (_event, { id, url, bounds } = {}) => 
     }
   }
   applyZoomToView(view)
+  notifyNavChanged()
   return { ok: true }
 })
 
@@ -698,6 +768,7 @@ ipcMain.handle('browser-view:show-panes', async (_event, { panes } = {}) => {
     view.setBounds(bounds)
   }
 
+  notifyNavChanged()
   return { ok: true, count: orderedViews.length }
 })
 
@@ -714,6 +785,7 @@ ipcMain.handle('browser-view:hide', () => {
   detachAllViews()
   muteAllViews(true)
   pauseAllMedia()
+  notifyNavChanged()
   return { ok: true }
 })
 
@@ -729,13 +801,18 @@ ipcMain.handle('browser-view:destroy', (_event, { ids } = {}) => {
 })
 
 ipcMain.handle('browser-view:reload', () => {
-  const attached = mainWindow?.getBrowserViews?.() || []
-  const views = attached.length ? attached : [...paneViews.values()]
-  for (const view of views) {
+  for (const view of listAttachedViews()) {
     if (view && !view.webContents.isDestroyed()) view.webContents.reload()
   }
+  notifyNavChanged()
   return { ok: true }
 })
+
+ipcMain.handle('browser-view:go-back', () => goAttached(-1))
+
+ipcMain.handle('browser-view:go-forward', () => goAttached(1))
+
+ipcMain.handle('browser-view:get-nav-state', () => readNavState())
 
 ipcMain.handle('browser-view:open-external', async (_event, url) => {
   if (url) await shell.openExternal(url)
