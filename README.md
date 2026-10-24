@@ -1,6 +1,20 @@
 # Designer网址导航
 
-Electron 桌面应用（包名 `designer-nav-web`）。右侧使用 **BrowserView** 加载真实网页（不是 iframe），不受 `X-Frame-Options` / CSP 嵌入限制。
+## 介绍
+网址导航+聚合搜索+收藏
+
+## 技术栈
+
+- **桌面壳**：Electron（BrowserView 加载真实网页）
+- **前端**：Vue 3 + Naive UI
+- **构建**：Vite
+- **打包**：electron-builder（macOS `.dmg` / Windows NSIS）
+
+## 环境要求
+
+- **Node.js**：`^20.19.0` 或 `>=22.12.0`（由 Vite 8 决定；建议使用 LTS）
+
+## 本地运行
 
 ```bash
 npm install
